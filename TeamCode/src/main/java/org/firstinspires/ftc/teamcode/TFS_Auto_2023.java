@@ -29,8 +29,6 @@
 
 package org.firstinspires.ftc.teamcode;
 
-import android.annotation.SuppressLint;
-
 import com.qualcomm.hardware.bosch.BNO055IMU;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -65,8 +63,8 @@ public class TFS_Auto_2023 extends LinearOpMode
     double                  wrist_Flip_Offset = 0.01;
     double                  claw_Left_Offset =  0;
     double                  claw_Right_Offset = 0;
-    double                  scannedturretangle = 78;
-    double                  scannedturretanglepole = 29 ;
+    int                  scannedturretangle = 78;
+    int                   scannedturretanglepole = 29 ;
 
     int                     isLeftSide = 0;
     int                     stackCount = 0;
@@ -119,8 +117,9 @@ public class TFS_Auto_2023 extends LinearOpMode
     double                  armExtendResolution = 0.0025; //Arm_Extend position control resolution
 
     double                  control1SpeedFactor = 1;
-
+    double                  scanextenddroppos = 0.35; //-29
     int                     parkingLocation = 1;
+
 
     /************************************ Vision and Landmark *******************************/
     private static final String TFOD_MODEL_ASSET = "PowerPlay.tflite";
@@ -194,7 +193,7 @@ public class TFS_Auto_2023 extends LinearOpMode
 
         routineTaskThread  routineTaskThread = new routineTaskThread();
         routineTaskThread.start();
-      // only for testing, in real game, you should only identify the object after pressing START button
+        // only for testing, in real game, you should only identify the object after pressing START button
         parkingLocation = identifyTeamObjectLocation();
         telemetry.addData("Parking Loc:", parkingLocation);
 
@@ -745,7 +744,7 @@ public class TFS_Auto_2023 extends LinearOpMode
 
     // to drop the cone at front
     private void wrist_cone_front_ready(double adjustmentAngle)
-        { // maintain 45 degree ``above`` level
+    { // maintain 45 degree ``above`` level
         wrist_Flip_Servo(90);
         wrist_Tilt_Servo (-80-getArmLiftPosition() + adjustmentAngle);
     }
@@ -785,6 +784,16 @@ public class TFS_Auto_2023 extends LinearOpMode
     { // above level by 60
         wrist_Flip_Servo(-90);
         wrist_Tilt_Servo (-15-getArmLiftPosition() + adjustmentAngle);
+    }
+    public void scanextend(double targetdis){
+        if(scanJunction.isFoundJunction()&&targetdis<60){
+            double middleDis = centerd.getDistance(DistanceUnit.MM) - 22;
+            double diffrence = (middleDis-targetdis)/1000 ;
+            arm_extendThread = new Arm_Extend_PositionThread(getArmExtendPosition()+diffrence, 0.9, 0);
+            arm_extendThread.start();
+            scanextenddroppos = getArmExtendPosition()+diffrence;
+            while(arm_extendThread.isAlive()) idle();
+        }
     }
 
     private double getArmPanPosition(){return Arm_PanMotor.getCurrentPosition() / turret_Pulse_per_Degree;}
@@ -940,186 +949,187 @@ public class TFS_Auto_2023 extends LinearOpMode
     }
 
 
-// change here
-            // Auto task functions //
-           void autoPreloadedConetoPoleTask(){ //Go forward and deliver the pre-load cone
-               int PanAngle = -29;
-               double extendLength = 0.35;
-
-                if (isLeftSide == -1)// on the left side
-                {
-                    PanAngle = 29;
-                    extendLength = 0.35;
-                }
-                    claw_Close();
-                    arm_extendThread = new Arm_Extend_PositionThread(0.01, 0.9, 0);
-                    arm_extendThread.start();
-                    goXYnTurnThread = new goXYnTurnThread(0, 1.07, 0, 0.4, 0.01, 0.05, 1,0,true,true,0);
-                    goXYnTurnThread.start();
-                    arm_liftThread = new Arm_Lift_PositionThread( -48,0.6, 0);
-                    arm_liftThread.start();
-                    arm_panThread = new Arm_Pan_PositionThread(PanAngle, 0.3,0);
-                    arm_panThread.start();
-                    sleep(500);
-                    arm_extendThread = new Arm_Extend_PositionThread(extendLength, 0.7, 0);
-                    arm_extendThread.start();
-
-                    sleep(200);
-                    wrist_cone_front_ready(0);
-
-                    while  (arm_liftThread.isAlive() && !isStopRequested()) idle();
-                    wrist_cone_front_ready(0);
-
-                    //Wait until it reach the destination
-                    while (!isStopRequested() &&(goXYnTurnThread.isAlive()|| arm_panThread.isAlive()|| arm_liftThread.isAlive() || arm_extendThread.isAlive()) ){
-                        idle();
-                    }
-                    claw_Scan();
-                    wrist_Flip_Servo(90);
-
-
-               scanJunction = new ScanJunctionThread();
-               scanJunction.start();
-                   while (!scanJunction.isFoundJunction() && !isStopRequested()) idle();
-
-
-                    wrist_cone_front_drop(0);
-                    isInAuto = false;
-                }
-        void autoscanconepickup(){
-            int PanAngle = 74;
-            double extendLength = 0.17;
-
-            if (isLeftSide == -1)// on the left side
-            {
-                PanAngle = -74; //add 2 degree from (-left)
-                extendLength = 0.17;
-            }
-            goXYnTurnThread = new goXYnTurnThread(0, robotPosition[0], robotPosition[1], 0.4, 0.01, 0.05, 1,0,true,true,0);
-            goXYnTurnThread.start();
-            arm_extendThread = new Arm_Extend_PositionThread(extendLength + ((double)stackCount * 0.005), 0.9, 0);
-            arm_extendThread.start();
-            arm_liftThread = new Arm_Lift_PositionThread( -107 - (int)(stackCount * 2),0.6, 200);
-            arm_liftThread.start();
-            arm_panThread = new Arm_Pan_PositionThread(PanAngle, 0.45,0);
-            arm_panThread.start();
-            stackCount += 1;
-            if(stackCount == 5) stackCount = 0;
-
-            while ((arm_panThread.isAlive()|| arm_liftThread.isAlive()) && !isStopRequested()) idle();
-            arm_extendThread = new Arm_Extend_PositionThread(0.43, 0.75, 0);
-            arm_extendThread.start();
-            claw_Scan();
-            wrist_Flip_Servo(90);
-
-            while ((arm_extendThread.isAlive() ) && !isStopRequested()) idle();
-
-            scanCone = new ScanConeThread();
-            scanCone.start();
-
-            while (scanCone.isFoundCone() == false && !isStopRequested()) idle();
-
-            arm_extendThread = new Arm_Extend_PositionThread(0.455, 0.75, 0);
-            arm_extendThread.start();
-
-
-
-
-            while ( arm_extendThread.isAlive() && !isStopRequested()) idle();
-
-            wrist_cone_pickup_front_ready(0);
-            claw_Close();
-            wrist_cone_pickup_front_Up(0);
-            sleep(200);
-
-            isInAuto = false;
-        }
-
-
-
     // change here
-    @SuppressLint("SuspiciousIndentation")
-    void autoConeStacktoHighPoleTask(){ // deliver the cone from stack to high pole
-            int PanAngle = -29;
-            double extendLength = 0.35;
+    // Auto task functions //
+    void autoPreloadedConetoPoleTask(){ //Go forward and deliver the pre-load cone
+        int PanAngle = -29;
+        double extendLength = 0.35;
 
-            if (isLeftSide == -1)// on the left side
-            {
-                PanAngle = 29;
-            }
-                    claw_Close();
-                    arm_extendThread = new Arm_Extend_PositionThread(0.01, 0.9, 0);
-                    arm_extendThread.start();
-                    //goXYnTurnThread = new goXYnTurnThread(0, robotPosition[0], robotPosition[1], 0.4, 0.01, 0.05, 1,0,true,false,0);
-                    //goXYnTurnThread.start();
-                    arm_liftThread = new Arm_Lift_PositionThread( -48,0.6, 0);
-                    arm_liftThread.start();
-                    arm_panThread = new Arm_Pan_PositionThread(scannedturretanglepole, 0.45,150);
-                    arm_panThread.start();
-
-                    sleep(500);
-                    arm_extendThread = new Arm_Extend_PositionThread(extendLength, 0.7, 0);
-                    arm_extendThread.start();
-                    while  (arm_liftThread.isAlive() && !isStopRequested()) idle();
-                    wrist_cone_front_ready(0);
-
-                    //Wait until it reach the destination
-                //while (!isStopRequested() &&(goXYnTurnThread.isAlive() || arm_panThread.isAlive()|| arm_liftThread.isAlive() || arm_extendThread.isAlive()) )
-                while (!isStopRequested() &&( arm_panThread.isAlive()|| arm_liftThread.isAlive() || arm_extendThread.isAlive()) )
-                    idle();
-                    wrist_cone_front_drop(0);
-                    isInAuto = false;
-                }
-
-    // change here
-        void autoPickupTask( ){ // Pickup from the cone stack during auto
-            int PanAngle = 78;
-            double extendLength = 0.2;
-
-            if (isLeftSide == -1)// on the left side
-            {
-                PanAngle = -74; //add 2 degree from (-left)
-                extendLength = 0.2;
-            }
-                    goXYnTurnThread = new goXYnTurnThread(0, robotPosition[0], robotPosition[1], 0.4, 0.01, 0.05, 1,0,true,true,0);
-                    goXYnTurnThread.start();
-
-                    arm_extendThread = new Arm_Extend_PositionThread(extendLength + ((double)stackCount * 0.004), 0.9, 0);
-                    arm_extendThread.start();
-                    arm_liftThread = new Arm_Lift_PositionThread( -107 - (int)(stackCount * 2),0.6, 200);
-                    arm_liftThread.start();
-                    arm_panThread = new Arm_Pan_PositionThread(scannedturretangle, 0.45,0);
-                    arm_panThread.start();
-                    stackCount += 1;
-                    if(stackCount == 5) stackCount = 0;
-
-                    while ((arm_panThread.isAlive()|| arm_liftThread.isAlive()) && !isStopRequested()) idle();
-
-                    wrist_cone_pickup_front_ready(0);
-                    arm_extendThread = new Arm_Extend_PositionThread(0.475, 0.75, 0);
-                    arm_extendThread.start();
-
-                    while (arm_extendThread.isAlive() && !isStopRequested()) idle();
-
-                    claw_Close();
-                    sleep(200);
-                    wrist_cone_pickup_front_Up(0);
-                    sleep(200);
-                    arm_extendThread = new Arm_Extend_PositionThread(0.25, 0.9, 0);
-
-                    isInAuto = false;
-                }
-        private void armUpRightPosition()
+        if (isLeftSide == -1)// on the left side
         {
-            arm_extendThread = new Arm_Extend_PositionThread(0.01, 0.95, 0);
-            arm_extendThread.start();
-            arm_liftThread = new Arm_Lift_PositionThread( -10,0.95, 0);
-            arm_liftThread.start();
-            arm_panThread = new Arm_Pan_PositionThread(0, 0.6,0);
-            arm_panThread.start();
-            sleep(300);
-            wrist_Tilt_Servo(-45);
+            PanAngle = 29;
+            extendLength = 0.3;//value nerfed for scanning
         }
+        claw_Close();
+        arm_extendThread = new Arm_Extend_PositionThread(0.01, 0.9, 0);
+        arm_extendThread.start();
+        goXYnTurnThread = new goXYnTurnThread(0, 1.07, 0, 0.4, 0.01, 0.05, 1,0,true,true,0);
+        goXYnTurnThread.start();
+        arm_liftThread = new Arm_Lift_PositionThread( -48,0.6, 0);
+        arm_liftThread.start();
+        arm_panThread = new Arm_Pan_PositionThread(PanAngle, 0.3,0);
+        arm_panThread.start();
+        sleep(500);
+        arm_extendThread = new Arm_Extend_PositionThread(extendLength, 0.7, 0);
+        arm_extendThread.start();
+
+        sleep(200);
+        wrist_cone_front_ready(0);
+
+        while  (arm_liftThread.isAlive() && !isStopRequested()) idle();
+        wrist_cone_front_ready(0);
+
+        //Wait until it reach the destination
+        while (!isStopRequested() &&(goXYnTurnThread.isAlive()|| arm_panThread.isAlive()|| arm_liftThread.isAlive() || arm_extendThread.isAlive()) ){
+            idle();
+        }
+        wrist_Flip_Servo(90);
+        if(isLeftSide == -1){
+            scanJunction = new ScanJunctionThread(-10,-45);
+            scanJunction.start();
+        }
+        else{
+            scanJunction = new ScanJunctionThread(10,45);
+            scanJunction.start();
+        }
+        while (!scanJunction.isFoundJunction() && !isStopRequested()) idle();
+        scanextend(26);
+        wrist_cone_front_drop(0);
+        isInAuto = false;
+    }
+    void autoscanconepickup(){
+        int PanAngle = 74;
+        double extendLength = 0.17;
+
+        if (isLeftSide == -1)// on the left side
+        {
+            PanAngle = -74; //add 2 degree from (-left)
+            extendLength = 0.17;
+        }
+        goXYnTurnThread = new goXYnTurnThread(0, robotPosition[0], robotPosition[1], 0.4, 0.01, 0.05, 1,0,true,true,0);
+        goXYnTurnThread.start();
+        arm_extendThread = new Arm_Extend_PositionThread(extendLength + ((double)stackCount * 0.005), 0.9, 0);
+        arm_extendThread.start();
+        arm_liftThread = new Arm_Lift_PositionThread( -107 - (int)(stackCount * 2),0.6, 200);
+        arm_liftThread.start();
+        arm_panThread = new Arm_Pan_PositionThread(PanAngle, 0.45,0);
+        arm_panThread.start();
+        stackCount += 1;
+        if(stackCount == 5) stackCount = 0;
+
+        while ((arm_panThread.isAlive()|| arm_liftThread.isAlive()) && !isStopRequested()) idle();
+        arm_extendThread = new Arm_Extend_PositionThread(0.43, 0.75, 0);
+        arm_extendThread.start();
+        claw_Scan();
+        wrist_Flip_Servo(90);
+
+        while ((arm_extendThread.isAlive() ) && !isStopRequested()) idle();
+
+        scanCone = new ScanConeThread();
+        scanCone.start();
+
+        while (scanCone.isFoundCone() == false && !isStopRequested()) idle();
+
+        arm_extendThread = new Arm_Extend_PositionThread(0.455, 0.75, 0);
+        arm_extendThread.start();
+
+
+
+
+        while ( arm_extendThread.isAlive() && !isStopRequested()) idle();
+
+        wrist_cone_pickup_front_ready(0);
+        claw_Close();
+        wrist_cone_pickup_front_Up(0);
+        sleep(200);
+
+        isInAuto = false;
+    }
+
+
+
+    // change here
+    void autoConeStacktoHighPoleTask(){ // deliver the cone from stack to high pole
+        int PanAngle = scannedturretanglepole; //-29
+        double extendLength = scanextenddroppos;//0.35
+
+        if (isLeftSide == -1)// on the left side
+        {
+            PanAngle = 29;
+        }
+        claw_Close();
+        arm_extendThread = new Arm_Extend_PositionThread(0.01, 0.9, 0);
+        arm_extendThread.start();
+        //goXYnTurnThread = new goXYnTurnThread(0, robotPosition[0], robotPosition[1], 0.4, 0.01, 0.05, 1,0,true,false,0);
+        //goXYnTurnThread.start();
+        arm_liftThread = new Arm_Lift_PositionThread( -48,0.6, 0);
+        arm_liftThread.start();
+        arm_panThread = new Arm_Pan_PositionThread(scannedturretanglepole, 0.45,150);
+        arm_panThread.start();
+
+        sleep(500);
+        arm_extendThread = new Arm_Extend_PositionThread(extendLength, 0.7, 0);
+        arm_extendThread.start();
+        while  (arm_liftThread.isAlive() && !isStopRequested()) idle();
+        wrist_cone_front_ready(0);
+
+        //Wait until it reach the destination
+        //while (!isStopRequested() &&(goXYnTurnThread.isAlive() || arm_panThread.isAlive()|| arm_liftThread.isAlive() || arm_extendThread.isAlive()) )
+        while (!isStopRequested() &&( arm_panThread.isAlive()|| arm_liftThread.isAlive() || arm_extendThread.isAlive()) )
+            idle();
+        wrist_cone_front_drop(0);
+        isInAuto = false;
+    }
+
+    // change here
+    void autoPickupTask( ){ // Pickup from the cone stack during auto
+        int PanAngle = 78;
+        double extendLength = 0.2;
+
+        if (isLeftSide == -1)// on the left side
+        {
+            PanAngle = -74; //add 2 degree from (-left)
+            extendLength = 0.2;
+        }
+        goXYnTurnThread = new goXYnTurnThread(0, robotPosition[0], robotPosition[1], 0.4, 0.01, 0.05, 1,0,true,true,0);
+        goXYnTurnThread.start();
+
+        arm_extendThread = new Arm_Extend_PositionThread(extendLength + ((double)stackCount * 0.004), 0.9, 0);
+        arm_extendThread.start();
+        arm_liftThread = new Arm_Lift_PositionThread( -107 - (int)(stackCount * 2),0.6, 200);
+        arm_liftThread.start();
+        arm_panThread = new Arm_Pan_PositionThread(scannedturretangle, 0.45,0);
+        arm_panThread.start();
+        stackCount += 1;
+        if(stackCount == 5) stackCount = 0;
+
+        while ((arm_panThread.isAlive()|| arm_liftThread.isAlive()) && !isStopRequested()) idle();
+
+        wrist_cone_pickup_front_ready(0);
+        arm_extendThread = new Arm_Extend_PositionThread(0.475, 0.75, 0);
+        arm_extendThread.start();
+
+        while (arm_extendThread.isAlive() && !isStopRequested()) idle();
+
+        claw_Close();
+        sleep(200);
+        wrist_cone_pickup_front_Up(0);
+        sleep(200);
+        arm_extendThread = new Arm_Extend_PositionThread(0.25, 0.9, 0);
+
+        isInAuto = false;
+    }
+    private void armUpRightPosition()
+    {
+        arm_extendThread = new Arm_Extend_PositionThread(0.01, 0.95, 0);
+        arm_extendThread.start();
+        arm_liftThread = new Arm_Lift_PositionThread( -10,0.95, 0);
+        arm_liftThread.start();
+        arm_panThread = new Arm_Pan_PositionThread(0, 0.6,0);
+        arm_panThread.start();
+        sleep(300);
+        wrist_Tilt_Servo(-45);
+    }
 
     private void stopAllMotors(){
         brakeAll(false, true);
@@ -1139,13 +1149,16 @@ public class TFS_Auto_2023 extends LinearOpMode
 
         private double scanServoAngle = 0;
         private boolean foundJunction = false;
-
-        public ScanJunctionThread()
+        private int scanlowrange;
+        private int scanhighrange;
+        public ScanJunctionThread(int low, int high)
         {
             scanServoAngle =  getArmPanPosition();
             runningFlag = true;
             foundJunction = false;
             scanFlag = true;
+            scanlowrange = low;
+            scanhighrange = high;
         }
 
         @Override
@@ -1158,10 +1171,10 @@ public class TFS_Auto_2023 extends LinearOpMode
             double scanStopAngle = 50;
             // now scan +/- 15 degree
             double scanHigh = scanServoAngle + 15;
-            scanHigh = scanHigh > 50 ? 50 : scanHigh;
+            scanHigh = scanHigh > scanhighrange ? scanhighrange : scanHigh;
 
             double scanLow = scanServoAngle - 15;
-            scanLow = scanLow < -90 ? -90 : scanLow;
+            scanLow = scanLow < scanlowrange ? scanlowrange : scanLow;
 
             while(opModeIsActive() && runningFlag)
             {
@@ -1195,7 +1208,7 @@ public class TFS_Auto_2023 extends LinearOpMode
                 arm_panThread.start();
                 if(middleDis < leftDis && middleDis < rightDis && middleDis < DETECT_DIS)
                 {
-                    scannedturretanglepole = getArmPanPosition();
+                    scannedturretanglepole = (int) getArmPanPosition();
                     foundJunction = true;
 
                 }
@@ -1240,7 +1253,7 @@ public class TFS_Auto_2023 extends LinearOpMode
                 rightDis = rightd.getDistance(DistanceUnit.MM);
 
                 if ((leftDis < DETECT_DIS && rightDis < DETECT_DIS)&&(leftDis - rightDis > 10)&&!foundCone){
-                    scannedturretangle = getArmPanPosition();
+                    scannedturretangle = (int) getArmPanPosition();
                     foundCone = true;
 
 

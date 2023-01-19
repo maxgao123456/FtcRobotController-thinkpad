@@ -253,12 +253,11 @@ public class TFS_TeleOp_2023 extends LinearOpMode
             if(gamepad2.a){
                 if (!isInAuto){
                     isInAuto = true;
-                    claw_Scan();
-                    arm_liftThread = new Arm_Lift_PositionThread( -48,0.6, 0);
-                    arm_liftThread.start();
-                    scanJunction = new ScanJunctionThread();
+                    //claw_Scan();
+                    scanJunction = new ScanJunctionThread(-35,-16);
                     scanJunction.start();
-                    while (arm_liftThread.isAlive() || scanJunction.isAlive() ) idle();
+                    while (scanJunction.isAlive() ) idle();
+                    //scanextend(26);
                     telemetry.addData("Scanthread:",scanJunction.isAlive() );
                     telemetry.addData("finished","");
                     telemetry.update();
@@ -406,10 +405,10 @@ public class TFS_TeleOp_2023 extends LinearOpMode
 
                 // Claw Open and CLose
                 if(gamepad2.start){
-                    claw_Servo(90);
+                    claw_Servo(90);//open
                 }
                 if(gamepad2.back){
-                    claw_Servo(38);
+                    claw_Servo(30);//close
                 }
 
 //                if(gamepad1.start){
@@ -886,9 +885,9 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         ClawServo_Left.setPosition(0.5 + claw_Left_Offset + servoIncrement);
         ClawServo_Right.setPosition(0.5 + claw_Right_Offset + servoIncrement);
     }
-    private void claw_Close() {claw_Servo(90);}
+    private void claw_Close() {claw_Servo(30    );}
     private void claw_Scan(){ ClawServo_Left.setPosition(0.9);ClawServo_Right.setPosition(0.9);}
-    private void claw_Open() {claw_Servo(35);}
+    private void claw_Open() {claw_Servo(90);}
 
     // to drop the cone at front
     private void wrist_cone_front_ready(double adjustmentAngle)
@@ -938,9 +937,8 @@ public class TFS_TeleOp_2023 extends LinearOpMode
             telemetry.update();
             arm_extendThread = new Arm_Extend_PositionThread(getArmExtendPosition()+diffrence, 0.9, 0);
             arm_extendThread.start();
+            while(arm_extendThread.isAlive()) idle();
         }
-
-
     }
 
     /*********************** Thread Classes ********************/
@@ -1139,7 +1137,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
 
 
                 claw_Close();
-                arm_extendThread = new Arm_Extend_PositionThread(0.20, 0.9, 0);
+                arm_extendThread = new Arm_Extend_PositionThread(0.16, 0.9, 0);
                 arm_extendThread.start();
                 arm_liftThread = new Arm_Lift_PositionThread( coneDropLiftAngle,0.75, 0);
                 arm_liftThread.start();
@@ -1218,6 +1216,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
             runningFlag = true;
             foundCone = false;
             scanFlag = true;
+
         }
 
         @Override
@@ -1289,9 +1288,13 @@ public class TFS_TeleOp_2023 extends LinearOpMode
 
         private double scanAngle = 0;
         private boolean foundJunction = false;
+        public int scanlowrange;
+        public int scanhighrange;
 
-        public ScanJunctionThread() {
+        public ScanJunctionThread(int low, int high) {
             scanAngle = getArmPanPosition();
+            scanlowrange = low;
+            scanhighrange = high;
             runningFlag = true;
             foundJunction = false;
             scanFlag = true;
@@ -1304,10 +1307,10 @@ public class TFS_TeleOp_2023 extends LinearOpMode
             boolean scanDir = true;
 
             double scanHigh = scanAngle + 15;
-            scanHigh = scanHigh > 60 ? 60 : scanHigh;
+            scanHigh = scanHigh > scanhighrange ? scanhighrange : scanHigh;
 
             double scanLow = scanAngle - 15;
-            scanLow = scanLow < 35 ? 35 : scanLow;
+            scanLow = scanLow < scanlowrange ? scanlowrange : scanLow;
 
             while (opModeIsActive() && runningFlag && !foundJunction) {
                 leftDis = leftd.getDistance(DistanceUnit.MM) - 27;
