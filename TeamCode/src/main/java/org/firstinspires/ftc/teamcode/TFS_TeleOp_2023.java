@@ -67,6 +67,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
     int                     isLeftSide = 0;
     double                  coneDropPanAngle = -28;
     double                  coneDropLiftAngle = -35;
+    double                  coneDropLiftAnglepush = -50;
     double                  coneDropExtendLength = 0.275;
     double                  conePickupPanAngle = 0;
     double                  conePickupLiftAngle = 97;
@@ -91,6 +92,8 @@ public class TFS_TeleOp_2023 extends LinearOpMode
     double                  globalAngle;
     int                     lfPosition_last =0, rfPosition_last =0,lrPosition_last =0,rrPosition_last =0;
     double[]                robotPosition = new double[]{0,0,0};
+    double[]                armextendpushpos = new double[5];
+    int[]                   armliftpushpos = new int [5];
     private ElapsedTime     runtime = new ElapsedTime();
     int                     objectDetectionCount =0;
 
@@ -182,6 +185,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         if (isLeftSide == -1) // right side
         {   coneDropPanAngle = 29;
             coneDropLiftAngle = -35;
+            coneDropLiftAnglepush = -50;
             coneDropExtendLength = 0.275;}
 
         Init();
@@ -232,7 +236,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
             if (gamepad2.y ||gamepad1.y) {
                 if (!isInAuto){
                     isInAuto = true;
-                    teleConeToHighPoleTask();
+                    teleConeToHighPoleTaskwithpush();
                     ;                    }//Threaded Task
             }
             if (gamepad2.x|| gamepad1.x) {
@@ -253,11 +257,13 @@ public class TFS_TeleOp_2023 extends LinearOpMode
             if(gamepad2.a){
                 if (!isInAuto){
                     isInAuto = true;
-                    //claw_Scan();
+                    claw_Scan();
                     scanJunction = new ScanJunctionThread(-35,-16);
                     scanJunction.start();
                     while (scanJunction.isAlive() ) idle();
-                    //scanextend(26);
+                    pushposcall();
+                    while(arm_liftThread.isAlive()||arm_extendThread.isAlive()) idle();
+                    wrist_cone_front_drop(0);
                     telemetry.addData("Scanthread:",scanJunction.isAlive() );
                     telemetry.addData("finished","");
                     telemetry.update();
@@ -453,6 +459,8 @@ public class TFS_TeleOp_2023 extends LinearOpMode
                 telemetry.addData("Controller1 Speed", control1SpeedFactor);
                 telemetry.addData("Controller2 Speed", control2SpeedFactor);
                 telemetry.addData("FrontLeft Wheel Pos", LFMotor.getCurrentPosition());
+                telemetry.addData("extend pos",getArmExtendPosition());
+                telemetry.addData("lift pos",getArmLiftPosition());
                 telemetry.addData("pan pos",getArmPanPosition());
                 telemetry.addData("right:", String.format("%.01f mm", rightd.getDistance(DistanceUnit.MM)));
                 telemetry.addData("left:", String.format("%.01f mm", leftd.getDistance(DistanceUnit.MM)));
@@ -885,8 +893,8 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         ClawServo_Left.setPosition(0.5 + claw_Left_Offset + servoIncrement);
         ClawServo_Right.setPosition(0.5 + claw_Right_Offset + servoIncrement);
     }
-    private void claw_Close() {claw_Servo(30    );}
-    private void claw_Scan(){ ClawServo_Left.setPosition(0.9);ClawServo_Right.setPosition(0.9);}
+    private void claw_Close() {claw_Servo(25);}
+    private void claw_Scan(){ claw_Close();wrist_conestack_scan(0);}
     private void claw_Open() {claw_Servo(90);}
 
     // to drop the cone at front
@@ -895,12 +903,13 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         wrist_Flip_Servo(90);
         wrist_Tilt_Servo (-80-getArmLiftPosition() + adjustmentAngle);
     }
+    private void wrist_drop_push(double adjustmentAngle){
+        wrist_Tilt_Servo (-60-getArmLiftPosition() + adjustmentAngle);
+    }
     private void wrist_cone_front_drop(double adjustmentAngle)
     { // maintain 15 degree below level
         wrist_Tilt_Servo (-150-getArmLiftPosition() + adjustmentAngle);
-        sleep(250);
         claw_Open();
-        sleep(100);
         //lift up the wrist by 90
         wrist_Tilt_Servo (-60-getArmLiftPosition() + adjustmentAngle);
 
@@ -917,6 +926,21 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         wrist_Flip_Servo(-90);
         wrist_Tilt_Servo (-15-getArmLiftPosition() + adjustmentAngle);
     }
+    private void wrist_conestack_scan(double adjustmentAngle)
+    {
+        // maintain 30 degree above level
+        wrist_Flip_Servo(90);
+        wrist_Tilt_Servo (-90-getArmLiftPosition() + adjustmentAngle);
+    }
+    private void pushposcall(){
+        for(int i = 0;i<3;i++){
+            arm_extendThread = new Arm_Extend_PositionThread(getArmExtendPosition()+0.02, 0.4, 0);
+            arm_extendThread.start();
+            arm_liftThread = new Arm_Lift_PositionThread( getArmLiftPosition()-2,0.6, 200);
+            arm_liftThread.start();
+            while(arm_liftThread.isAlive()||arm_extendThread.isAlive()) idle();
+        }
+    }
 
     private double getArmPanPosition(){return Arm_PanMotor.getCurrentPosition() / turret_Pulse_per_Degree;}
     private double getArmLiftPosition(){return (Arm_lift_Left_Motor.getCurrentPosition() + Arm_lift_Right_Motor.getCurrentPosition() ) /2.0/ lift_Pulse_per_Degree;}
@@ -930,6 +954,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         scanCone.start();
     }
     public void scanextend(double targetdis){
+        /*
         if(scanJunction.isFoundJunction()&&targetdis<60){
             double middleDis = centerd.getDistance(DistanceUnit.MM) - 22;
             double diffrence = (middleDis-targetdis)/1000 ;
@@ -937,8 +962,11 @@ public class TFS_TeleOp_2023 extends LinearOpMode
             telemetry.update();
             arm_extendThread = new Arm_Extend_PositionThread(getArmExtendPosition()+diffrence, 0.9, 0);
             arm_extendThread.start();
+
             while(arm_extendThread.isAlive()) idle();
         }
+
+         */
     }
 
     /*********************** Thread Classes ********************/
@@ -1149,6 +1177,49 @@ public class TFS_TeleOp_2023 extends LinearOpMode
                 wrist_Flip_Servo(90);
 
                 arm_extendThread = new Arm_Extend_PositionThread(coneDropExtendLength, 0.7, 0);
+                arm_extendThread.start();
+                while  (arm_liftThread.isAlive()) idle();
+                wrist_cone_front_ready(0);
+
+                //Wait until it reach the destination
+
+                while (!isStopRequested() &&(arm_panThread.isAlive()|| arm_liftThread.isAlive() || arm_extendThread.isAlive()) ){
+                    if (!isAutoEnable)
+                    {//to stop all thread tasks above
+                        Arm_pan_motorEnabled = false;
+                        Arm_lift_motorEnabled = false;
+                        Arm_extend_motorEnabled = false;
+                    }
+                    idle();
+                }
+                coneLiftingMissionCompleted = true;
+                //wrist_cone_front_drop(0);
+                isInAuto = false;
+            }
+        }).start();
+    }
+    void teleConeToHighPoleTaskwithpush(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                isAutoEnable = true;
+                coneLiftingMissionCompleted = false;
+                conePickupMissionCompleted = false;
+
+
+                claw_Close();
+                arm_extendThread = new Arm_Extend_PositionThread(0.2, 0.9, 0);
+                arm_extendThread.start();
+                arm_liftThread = new Arm_Lift_PositionThread( coneDropLiftAnglepush,0.75, 0);
+                arm_liftThread.start();
+                arm_panThread = new Arm_Pan_PositionThread(coneDropPanAngle, 0.4,150);
+                arm_panThread.start();
+
+                sleep(500);
+                wrist_Tilt_Servo(-45);
+                wrist_Flip_Servo(90);
+
+                arm_extendThread = new Arm_Extend_PositionThread(0.22, 0.7, 0);
                 arm_extendThread.start();
                 while  (arm_liftThread.isAlive()) idle();
                 wrist_cone_front_ready(0);

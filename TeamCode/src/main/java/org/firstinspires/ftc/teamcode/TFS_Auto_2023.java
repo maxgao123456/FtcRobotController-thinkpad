@@ -739,7 +739,7 @@ public class TFS_Auto_2023 extends LinearOpMode
         ClawServo_Right.setPosition(0.5 + claw_Right_Offset + servoIncrement);
     }
     private void claw_Close() {claw_Servo(25);}
-    private void claw_Scan(){ ClawServo_Left.setPosition(0.9);ClawServo_Right.setPosition(0.9);}
+    private void claw_Scan(){ claw_Close();wrist_conestack_scan(0);}
     private void claw_Open() {claw_Servo(90);}
 
     // to drop the cone at front
