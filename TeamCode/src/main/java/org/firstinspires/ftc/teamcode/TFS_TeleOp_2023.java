@@ -66,8 +66,9 @@ public class TFS_TeleOp_2023 extends LinearOpMode
 
     int                     isLeftSide = 0;
     double                  coneDropPanAngle = -28;
-    double                  coneDropLiftAngle = -35;
-    double                  coneDropLiftAnglepush = -50;
+    double                  coneDropLiftAngle = -28;
+    double                  coneDropLiftAnglepush = -51
+            ;
     double                  coneDropExtendLength = 0.275;
     double                  conePickupPanAngle = 0;
     double                  conePickupLiftAngle = 97;
@@ -185,8 +186,9 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         if (isLeftSide == -1) // right side
         {   coneDropPanAngle = 29;
             coneDropLiftAngle = -35;
-            coneDropLiftAnglepush = -50;
+            coneDropLiftAnglepush = -51;
             coneDropExtendLength = 0.275;}
+
 
         Init();
 
@@ -258,13 +260,21 @@ public class TFS_TeleOp_2023 extends LinearOpMode
                 if (!isInAuto){
                     isInAuto = true;
                     claw_Scan();
-                    scanJunction = new ScanJunctionThread(-35,-16);
+
+                    scanJunction = new ScanJunctionThread(-10,16);
                     scanJunction.start();
                     while (scanJunction.isAlive() ) idle();
+                    scanJunction = new ScanJunctionThread(-10,16);
+                    scanJunction.start();
+                    while (scanJunction.isAlive() ) idle();
+
+
+                    wrist_pushtilt(0);
+                    arm_extendThread = new Arm_Extend_PositionThread(0.12, 0.95, 0);
+                    arm_extendThread.start();
+                    while(arm_extendThread.isAlive()) idle();
                     pushposcall();
                     while(arm_liftThread.isAlive()||arm_extendThread.isAlive()) idle();
-                    wrist_cone_front_drop(0);
-                    telemetry.addData("Scanthread:",scanJunction.isAlive() );
                     telemetry.addData("finished","");
                     telemetry.update();
                     isInAuto = false;
@@ -414,7 +424,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
                     claw_Servo(90);//open
                 }
                 if(gamepad2.back){
-                    claw_Servo(30);//close
+                    claw_Servo(7);//close
                 }
 
 //                if(gamepad1.start){
@@ -893,7 +903,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         ClawServo_Left.setPosition(0.5 + claw_Left_Offset + servoIncrement);
         ClawServo_Right.setPosition(0.5 + claw_Right_Offset + servoIncrement);
     }
-    private void claw_Close() {claw_Servo(25);}
+    private void claw_Close() {claw_Servo(12);}
     private void claw_Scan(){ claw_Close();wrist_conestack_scan(0);}
     private void claw_Open() {claw_Servo(90);}
 
@@ -921,6 +931,11 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         wrist_Flip_Servo(-90);
         wrist_Tilt_Servo (45-getArmLiftPosition() + adjustmentAngle);
     }
+
+    private void wrist_pushtilt(double adjustmentAngle){
+        wrist_Flip_Servo(90);
+        wrist_Tilt_Servo (-50-getArmLiftPosition() + adjustmentAngle);
+    }
     private void wrist_cone_pickup_back_Up(double adjustmentAngle)
     { // above level by 60
         wrist_Flip_Servo(-90);
@@ -933,13 +948,21 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         wrist_Tilt_Servo (-90-getArmLiftPosition() + adjustmentAngle);
     }
     private void pushposcall(){
-        for(int i = 0;i<3;i++){
+        //wrist_cone_front_drop(0);
+        double position = getArmWristTiltPosition();
+        boolean servotiltrun = true;
+            while(servotiltrun){
+                position -= 0.4;
+                if(position <= -150-getArmLiftPosition()){
+                    servotiltrun = false;
+                }
+                wrist_Tilt_Servo(position);
+
+            }
             arm_extendThread = new Arm_Extend_PositionThread(getArmExtendPosition()+0.02, 0.4, 0);
             arm_extendThread.start();
-            arm_liftThread = new Arm_Lift_PositionThread( getArmLiftPosition()-2,0.6, 200);
-            arm_liftThread.start();
-            while(arm_liftThread.isAlive()||arm_extendThread.isAlive()) idle();
-        }
+            while(arm_extendThread.isAlive()) idle();
+
     }
 
     private double getArmPanPosition(){return Arm_PanMotor.getCurrentPosition() / turret_Pulse_per_Degree;}
@@ -1165,7 +1188,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
 
 
                 claw_Close();
-                arm_extendThread = new Arm_Extend_PositionThread(0.16, 0.9, 0);
+                arm_extendThread = new Arm_Extend_PositionThread(0.14, 0.9, 0);
                 arm_extendThread.start();
                 arm_liftThread = new Arm_Lift_PositionThread( coneDropLiftAngle,0.75, 0);
                 arm_liftThread.start();
@@ -1208,7 +1231,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
 
 
                 claw_Close();
-                arm_extendThread = new Arm_Extend_PositionThread(0.2, 0.9, 0);
+                arm_extendThread = new Arm_Extend_PositionThread(0.1, 0.9, 0);
                 arm_extendThread.start();
                 arm_liftThread = new Arm_Lift_PositionThread( coneDropLiftAnglepush,0.75, 0);
                 arm_liftThread.start();
@@ -1219,7 +1242,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
                 wrist_Tilt_Servo(-45);
                 wrist_Flip_Servo(90);
 
-                arm_extendThread = new Arm_Extend_PositionThread(0.22, 0.7, 0);
+                arm_extendThread = new Arm_Extend_PositionThread(0.03, 0.7, 0);
                 arm_extendThread.start();
                 while  (arm_liftThread.isAlive()) idle();
                 wrist_cone_front_ready(0);
@@ -1355,7 +1378,7 @@ public class TFS_TeleOp_2023 extends LinearOpMode
         private double leftDis = 2000;
         private double rightDis = 2000;
         private double middleDis = 2000;
-        private final double DETECT_DIS = 250; // 50cm = 0.5m
+        private final double DETECT_DIS = 200; // 50cm = 0.5m
 
         private double scanAngle = 0;
         private boolean foundJunction = false;
@@ -1392,15 +1415,15 @@ public class TFS_TeleOp_2023 extends LinearOpMode
                     foundJunction = true;
                 }
                 else if (leftDis < middleDis && leftDis < DETECT_DIS) {
-                    scanAngle = scanAngle + 3;
-                    arm_panThread = new Arm_Pan_PositionThread(scanAngle, 0.6, 0);
+                    scanAngle += 3;
+                    arm_panThread = new Arm_Pan_PositionThread(scanAngle, 0.4, 0);
                     arm_panThread.start();
                     while (arm_panThread.isAlive()) idle();
                     foundJunction = true;
                 }
                 else if (rightDis < middleDis && rightDis < DETECT_DIS) {
-                    scanAngle = scanAngle - 3;
-                    arm_panThread = new Arm_Pan_PositionThread(scanAngle, 0.6, 0);
+                    scanAngle -= 3;
+                    arm_panThread = new Arm_Pan_PositionThread(scanAngle, 0.4, 0);
                     arm_panThread.start();
                     while (arm_panThread.isAlive()) idle();
                     foundJunction = true;

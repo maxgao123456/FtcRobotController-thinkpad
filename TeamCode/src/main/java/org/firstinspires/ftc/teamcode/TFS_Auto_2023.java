@@ -985,15 +985,16 @@ public class TFS_Auto_2023 extends LinearOpMode
         }
         wrist_Flip_Servo(90);
         if(isLeftSide == -1){
-            scanJunction = new ScanJunctionThread(-10,-45);
+            scanJunction = new ScanJunctionThread(-45,10);
             scanJunction.start();
         }
         else{
-            scanJunction = new ScanJunctionThread(10,45);
+            scanJunction = new ScanJunctionThread(-10,45);
             scanJunction.start();
         }
         while (!scanJunction.isFoundJunction() && !isStopRequested()) idle();
-        scanextend(26);
+        pushposcall();
+        while(arm_liftThread.isAlive()||arm_extendThread.isAlive()) idle();
         wrist_cone_front_drop(0);
         isInAuto = false;
     }
@@ -1137,6 +1138,14 @@ public class TFS_Auto_2023 extends LinearOpMode
         //Arm_liftMotor.setPower(0);
         Arm_ExtendMotor.setPower(0);
     }
+    private void pushposcall(){
+        for(int i = 0;i<1;i++){
+            arm_extendThread = new Arm_Extend_PositionThread(getArmExtendPosition()+0.2, 0.4, 0);
+            arm_extendThread.start();
+
+            while(arm_liftThread.isAlive()||arm_extendThread.isAlive()) idle();
+        }
+    }
     private class ScanJunctionThread extends Thread
     {
         public boolean runningFlag = false;
@@ -1145,7 +1154,7 @@ public class TFS_Auto_2023 extends LinearOpMode
         private double leftDis = 2000;
         private double rightDis = 2000;
         private double middleDis = 2000;
-        private final double DETECT_DIS = 250; // 50cm = 0.5m
+        private final double DETECT_DIS = 500; // 50cm = 0.5m
 
         private double scanServoAngle = 0;
         private boolean foundJunction = false;
@@ -1204,12 +1213,13 @@ public class TFS_Auto_2023 extends LinearOpMode
                 }else if(rightDis < middleDis && rightDis < DETECT_DIS){
                     scanServoAngle = scanServoAngle + 2;
                 }
-                arm_panThread = new Arm_Pan_PositionThread(scanServoAngle, 0.6,0);
+                arm_panThread = new Arm_Pan_PositionThread(scanServoAngle, 0.2,0);
                 arm_panThread.start();
                 if(middleDis < leftDis && middleDis < rightDis && middleDis < DETECT_DIS)
                 {
                     scannedturretanglepole = (int) getArmPanPosition();
                     foundJunction = true;
+                    runningFlag = false;
 
                 }
 
@@ -1277,5 +1287,6 @@ public class TFS_Auto_2023 extends LinearOpMode
             scanFlag = false;
         }
     }
+
 
 }
